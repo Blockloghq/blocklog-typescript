@@ -70,9 +70,9 @@ export class DecisionContext {
   }
 
   public async requestApproval(options: { reason: string }): Promise<void> {
-    await this.client.approvals.request({
+    await this.client.approvals.create({
       decisionId: this.id,
-      reason: options.reason
+      reason: options.reason,
     });
   }
 

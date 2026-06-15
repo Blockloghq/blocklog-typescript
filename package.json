@@ -1,10 +1,39 @@
 {
   "name": "@blocklog/sdk",
   "version": "1.0.0",
-  "description": "Blocklog TypeScript SDK",
+  "description": "Official TypeScript SDK for Blocklog AI observability, tracing, evaluation, HITL, governance, and audit logging.",
+  "homepage": "https://blocklog.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blockloghq/blocklog-typescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/blockloghq/blocklog-typescript/issues"
+  },
+  "license": "ISC",
+  "author": "Blocklog",
+  "keywords": [
+    "blocklog",
+    "ai",
+    "llm",
+    "observability",
+    "tracing",
+    "audit",
+    "governance",
+    "evaluation",
+    "agent",
+    "agents",
+    "openai",
+    "anthropic",
+    "langchain",
+    "typescript",
+    "sdk"
+  ],
+
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,30 +41,55 @@
       "require": "./dist/index.js"
     }
   },
+
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+
+  "sideEffects": false,
+
+  "engines": {
+    "node": ">=18"
+  },
+
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage",
     "dev": "tsup --watch",
+
     "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+
+    "prepublishOnly": "npm run clean && npm run build && npm run test && npm run typecheck",
+
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+
   "dependencies": {
     "zod": "^4.4.3"
   },
+
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "@swc/core": "^1.15.41",
     "@types/node": "^25.9.3",
     "@vitest/coverage-v8": "^4.1.9",
+
     "eslint": "^10.5.0",
     "prettier": "^3.8.4",
+
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

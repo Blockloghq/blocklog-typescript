@@ -54,7 +54,7 @@ export async function executeAgent<T>(
   };
 
   const span = TraceManager.startSpan(id, {
-    metadata: { agent_name: id, ...agentMeta }
+    metadata: agentMeta,
   });
 
   return TraceManager.runWithSpan(span, async () => {

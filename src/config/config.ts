@@ -29,27 +29,83 @@ export const BlocklogConfigSchema = z.object({
 export type BlocklogConfig = z.input<typeof BlocklogConfigSchema>;
 export type ResolvedConfig = z.output<typeof BlocklogConfigSchema>;
 
-export function resolveConfig(runtimeConfig: Partial<BlocklogConfig>): ResolvedConfig {
-  // Build config by prioritizing runtime overrides, then environment variables, then defaults.
+export function resolveConfig(
+  runtimeConfig: Partial<BlocklogConfig> = {}
+): ResolvedConfig {
   const envConfig: Partial<BlocklogConfig> = {
-    apiKey: process.env.BLOCKLOG_API_KEY || runtimeConfig.apiKey,
-    endpoint: process.env.BLOCKLOG_ENDPOINT || runtimeConfig.endpoint,
-    batchSize: process.env.BLOCKLOG_BATCH_SIZE ? parseInt(process.env.BLOCKLOG_BATCH_SIZE, 10) : runtimeConfig.batchSize,
-    flushInterval: process.env.BLOCKLOG_FLUSH_INTERVAL ? parseInt(process.env.BLOCKLOG_FLUSH_INTERVAL, 10) : runtimeConfig.flushInterval,
-    timeout: process.env.BLOCKLOG_TIMEOUT ? parseInt(process.env.BLOCKLOG_TIMEOUT, 10) : runtimeConfig.timeout,
-    retryCount: process.env.BLOCKLOG_RETRY_COUNT ? parseInt(process.env.BLOCKLOG_RETRY_COUNT, 10) : runtimeConfig.retryCount,
-    enableSigning: process.env.BLOCKLOG_ENABLE_SIGNING === 'true' ? true : (process.env.BLOCKLOG_ENABLE_SIGNING === 'false' ? false : runtimeConfig.enableSigning),
-    enableCompression: process.env.BLOCKLOG_ENABLE_COMPRESSION === 'true' ? true : (process.env.BLOCKLOG_ENABLE_COMPRESSION === 'false' ? false : runtimeConfig.enableCompression),
-    debug: process.env.BLOCKLOG_DEBUG === 'true' ? true : (process.env.BLOCKLOG_DEBUG === 'false' ? false : runtimeConfig.debug),
-    signingKey: process.env.BLOCKLOG_SIGNING_KEY || runtimeConfig.signingKey,
-    signingAlg: (process.env.BLOCKLOG_SIGNING_ALG || runtimeConfig.signingAlg) as any,
+    apiKey:
+      runtimeConfig.apiKey ??
+      process.env.BLOCKLOG_API_KEY,
+
+    endpoint:
+      runtimeConfig.endpoint ??
+      process.env.BLOCKLOG_ENDPOINT,
+
+    batchSize:
+      runtimeConfig.batchSize ??
+      (process.env.BLOCKLOG_BATCH_SIZE
+        ? parseInt(process.env.BLOCKLOG_BATCH_SIZE, 10)
+        : undefined),
+
+    flushInterval:
+      runtimeConfig.flushInterval ??
+      (process.env.BLOCKLOG_FLUSH_INTERVAL
+        ? parseInt(process.env.BLOCKLOG_FLUSH_INTERVAL, 10)
+        : undefined),
+
+    timeout:
+      runtimeConfig.timeout ??
+      (process.env.BLOCKLOG_TIMEOUT
+        ? parseInt(process.env.BLOCKLOG_TIMEOUT, 10)
+        : undefined),
+
+    retryCount:
+      runtimeConfig.retryCount ??
+      (process.env.BLOCKLOG_RETRY_COUNT
+        ? parseInt(process.env.BLOCKLOG_RETRY_COUNT, 10)
+        : undefined),
+
+    enableSigning:
+      runtimeConfig.enableSigning ??
+      (process.env.BLOCKLOG_ENABLE_SIGNING === 'true'
+        ? true
+        : process.env.BLOCKLOG_ENABLE_SIGNING === 'false'
+        ? false
+        : undefined),
+
+    enableCompression:
+      runtimeConfig.enableCompression ??
+      (process.env.BLOCKLOG_ENABLE_COMPRESSION === 'true'
+        ? true
+        : process.env.BLOCKLOG_ENABLE_COMPRESSION === 'false'
+        ? false
+        : undefined),
+
+    debug:
+      runtimeConfig.debug ??
+      (process.env.BLOCKLOG_DEBUG === 'true'
+        ? true
+        : process.env.BLOCKLOG_DEBUG === 'false'
+        ? false
+        : undefined),
+
+    signingKey:
+      runtimeConfig.signingKey ??
+      process.env.BLOCKLOG_SIGNING_KEY,
+
+    signingAlg:
+      runtimeConfig.signingAlg ??
+      (process.env.BLOCKLOG_SIGNING_ALG as
+        | 'ed25519'
+        | 'hmac-sha256'
+        | undefined),
   };
 
-  // Filter out undefined keys to let Zod supply defaults
-  const mergedConfig: Record<string, any> = {};
-  for (const [key, val] of Object.entries(envConfig)) {
-    if (val !== undefined) {
-      mergedConfig[key] = val;
+  const mergedConfig: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(envConfig)) {
+    if (value !== undefined) {
+      mergedConfig[key] = value;
     }
   }
 
