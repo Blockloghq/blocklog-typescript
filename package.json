@@ -16,7 +16,11 @@
     "build": "tsup",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "lint": "eslint src --ext .ts",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +30,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@swc/core": "^1.15.41",
     "@types/node": "^25.9.3",
     "@vitest/coverage-v8": "^4.1.9",

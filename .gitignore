@@ -48,10 +48,7 @@ temp/
 .blocklog_dlq.json 
 
 # Benchmark Outputs
-PERFORMANCE_REPORT.md 
-# Local Validation Pro
-
-jects 
+# Local Validation Projects 
 validation/node/node_modules/ 
 validation/express/node_modules/ 
 validation/nextjs/node_modules/
@@ -63,3 +60,8 @@ vitest.workspace.ts
 # Generated Files 
 *.pid 
 *.seed
+
+PRODUCTION_READINESS.md
+BACKEND_COMPATIBILITY.md
+PYTHON_SDK_PARITY.md
+PERFORMANCE_REPORT.md

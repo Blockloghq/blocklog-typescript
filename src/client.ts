@@ -10,7 +10,7 @@ import { RetryPolicy } from './transport/retry';
 import { HookCallback } from './middleware/hooks';
 import { EventEnvelope } from './models/events';
 import { IngestResponse } from './models/responses';
-import { resolveConfig, ResolvedConfig, BlocklogConfig } from './config/config';
+import { resolveConfig, ResolvedConfig, type BlocklogConfig } from './config/config';
 import { EventProcessor } from './pipeline/processor';
 import { TraceManager } from './tracing/manager';
 import { MemoryQueue } from './queue/memory';

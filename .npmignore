@@ -1,0 +1,51 @@
+# Source files
+src/
+tests/
+examples/
+docs/
+
+# Build artifacts (keep dist/)
+coverage/
+.nyc_output/
+
+# Configuration files
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+.eslintrc*
+.prettierrc*
+
+# Development files
+.github/
+.changeset/
+.gitignore
+.gitattributes
+
+# Documentation files (keep README.md)
+BACKEND_COMPATIBILITY.md
+PERFORMANCE_REPORT.md
+PRODUCTION_READINESS.md
+PYTHON_SDK_PARITY.md
+PACKAGE_AUDIT.md
+ECOSYSTEM_COMPATIBILITY.md
+ERROR_HANDLING_REPORT.md
+SECURITY_REVIEW.md
+PUBLIC_API.md
+RELEASE_READINESS.md
+API_INTEGRATION.md
+ARCHITECTURE.md
+DEPLOYMENT.md
+
+# Queue persistence files
+.blocklog_queue.json
+.blocklog_dlq.json
+
+# Temporary files
+*.log
+*.pid
+*.seed
+.DS_Store
+Thumbs.db
+
+# Node modules (already excluded by npm)
+node_modules/
