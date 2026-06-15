@@ -144,9 +144,9 @@ export class BlocklogClient {
   public async health(): Promise<HealthStatus> {
     const queueDepth = this.memoryQueue.length + this.persistentQueue.length;
     const pendingEvents = queueDepth;
-    
-    // Check transport readiness by attempting a lightweight request
-    let transportReady = false;
+
+    let transportReady: boolean;
+
     try {
       await this.transport.request('GET', '/health');
       transportReady = true;
