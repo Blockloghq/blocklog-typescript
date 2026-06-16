@@ -133,5 +133,5 @@ npm install
 ### Getting Help
 
 - Check the [GitHub Issues](https://github.com/blocklog/blocklog-typescript/issues)
-- Email support@blocklog.ai
+- Email founder@blocklogsecurity.com
 - Join our [Discord community](https://discord.gg/blocklog)
