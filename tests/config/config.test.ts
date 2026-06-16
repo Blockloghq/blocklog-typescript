@@ -35,7 +35,7 @@ describe('Config', () => {
 
     it('should use default endpoint when not specified', () => {
       const config = resolveConfig({ apiKey: 'test-key' });
-      expect(config.endpoint).toBe('https://api.blocklog.ai');
+      expect(config.endpoint).toBe('https://blocklogsecurity.com/api/v1');
     });
 
     it('should use default batch size when not specified', () => {

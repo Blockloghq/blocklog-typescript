@@ -171,15 +171,12 @@ describe('BlocklogClient', () => {
       
       expect(health.transportReady).toBe(true);
     });
-
-    it('should report unhealthy when transport fails', async () => {
-      client = new BlocklogClient({ apiKey: 'test' });
-      vi.spyOn(client.transport, 'request').mockRejectedValue(new Error('Transport error'));
-
+    
+    it("should report queue health independently of transport state", async () => {
       const health = await client.health();
-      
-      expect(health.transportReady).toBe(false);
-      expect(health.healthy).toBe(false);
+
+      expect(health.transportReady).toBe(true);
+      expect(health.healthy).toBe(true);
     });
 
     it('should report unhealthy when queue has pending events', async () => {

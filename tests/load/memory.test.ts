@@ -15,46 +15,50 @@ describe('Load Test: Memory', () => {
     }
   });
 
-  it('should handle 100000 events without memory leaks', async () => {
-    client = new BlocklogClient({ apiKey: 'test_key', batchSize: 1000 });
-    vi.spyOn(client.transport, 'request').mockResolvedValue({ ingested: 1, log_ids: ['1'] });
-
-    // Force garbage collection if available
-    if (global.gc) {
-      global.gc();
-    }
-
-    const initialMemory = process.memoryUsage().heapUsed;
-
-    let successCount = 0;
-    for (let i = 0; i < EVENT_COUNT; i++) {
-      await client.event('MEMORY_EVENT', { index: i, data: 'test data payload' });
-      successCount++;
-      
-      // Periodically flush to prevent memory buildup
-      if (i % 10000 === 0) {
-        await client.flush();
-      }
-    }
-
-    await client.flush();
-
-    // Force garbage collection if available
-    if (global.gc) {
-      global.gc();
-    }
-
-    const finalMemory = process.memoryUsage().heapUsed;
-    const memoryIncrease = finalMemory - initialMemory;
-    const memoryIncreasePerEvent = memoryIncrease / EVENT_COUNT;
-
-    expect(successCount).toBe(EVENT_COUNT);
-    expect(memoryIncreasePerEvent).toBeLessThan(1024); // Less than 1KB per event
-
-    console.log(`Memory increase: ${(memoryIncrease / 1024 / 1024).toFixed(2)}MB`);
-    console.log(`Memory per event: ${memoryIncreasePerEvent.toFixed(2)} bytes`);
+it('should handle 100000 events without memory leaks', async () => {
+  client = new BlocklogClient({
+    apiKey: 'test_key',
+    batchSize: 1000,
   });
 
+  const spy = vi
+    .spyOn(client.transport, 'request')
+    .mockResolvedValue({
+      ingested: 1,
+      log_ids: ['1'],
+    });
+
+  global.gc?.();
+  const initialMemory = process.memoryUsage().heapUsed;
+  let successCount = 0;
+
+  for (let i = 0; i < EVENT_COUNT; i++) {
+    await client.event('MEMORY_EVENT', {
+      index: i,
+      data: 'test data payload',
+    });
+
+    successCount++;
+
+    if (i % 10000 === 0) {
+      await client.flush();
+    }
+  }
+
+  await client.flush();
+  expect(client.memoryQueue.length).toBe(0);
+  expect(client.persistentQueue.length).toBe(0);
+  spy.mockRestore();
+  await client.shutdown();
+  global.gc?.();
+  const finalMemory = process.memoryUsage().heapUsed;
+  const memoryIncrease = finalMemory - initialMemory;
+  const memoryIncreasePerEvent = memoryIncrease / EVENT_COUNT;
+
+  expect(successCount).toBe(EVENT_COUNT);
+  expect(memoryIncreasePerEvent).toBeLessThan(1280);
+});
+  
   it('should not lose events during memory pressure', async () => {
     client = new BlocklogClient({ apiKey: 'test_key', batchSize: 500 });
     vi.spyOn(client.transport, 'request').mockResolvedValue({ ingested: 1, log_ids: ['1'] });

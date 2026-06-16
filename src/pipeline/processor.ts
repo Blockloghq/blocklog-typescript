@@ -4,11 +4,10 @@ import { MemoryQueue } from '../queue/memory';
 import { PersistentQueue } from '../queue/persistent';
 import { DeadLetterQueue } from '../queue/deadletter';
 import { EventEnvelope } from '../models/events';
-import { canonicalize } from '../utils/serialization';
 import { hashSignHmac, hashSignEd25519 } from '../signing/crypto';
-import { generateIdempotencyKey } from '../utils/ids';
 import { EventEmitter } from './emitter';
 import { IngestResponse } from '../models/responses';
+import { RetryPolicy } from '../transport/retry';
 import { createHash } from 'crypto';
 
 export class EventProcessor {
@@ -20,25 +19,35 @@ export class EventProcessor {
   private hooks: ((payload: Record<string, any>) => Record<string, any>)[] = [];
   public emitter: EventEmitter;
   private flushTimer: NodeJS.Timeout | null = null;
+  private flushing: boolean = false;
+  private retryPolicy: RetryPolicy;
 
-  constructor(config: ResolvedConfig, transport: SyncTransport) {
+  constructor(
+    config: ResolvedConfig,
+    transport: SyncTransport,
+    memoryQueue?: MemoryQueue,
+    persistentQueue?: PersistentQueue,
+    dlq?: DeadLetterQueue,
+  ) {
     this.config = config;
     this.transport = transport;
-    this.memoryQueue = new MemoryQueue();
-    this.persistentQueue = new PersistentQueue();
-    this.dlq = new DeadLetterQueue();
+    this.memoryQueue = memoryQueue || new MemoryQueue();
+    this.persistentQueue = persistentQueue || new PersistentQueue();
+    this.dlq = dlq || new DeadLetterQueue();
     this.emitter = new EventEmitter();
+    this.retryPolicy = new RetryPolicy({
+      maxRetries: config.retryCount,
+      baseDelayMs: 200,
+    });
 
-    // Start flush interval if flushInterval is set
     if (this.config.flushInterval > 0) {
       this.startFlushTimer();
     }
 
-    // Recover outstanding persistent queue items
     this.recoverPersistentEvents();
   }
 
-  private startFlushTimer() {
+  private startFlushTimer(): void {
     this.flushTimer = setInterval(() => {
       this.flush().catch(() => {});
     }, this.config.flushInterval);
@@ -47,7 +56,8 @@ export class EventProcessor {
     }
   }
 
-  private async recoverPersistentEvents() {
+  private async recoverPersistentEvents(): Promise<void> {
+    if (!this.config.persistenceEnabled) return;
     const len = this.persistentQueue.length;
     if (len > 0) {
       const items = await this.persistentQueue.peek(len);
@@ -59,18 +69,19 @@ export class EventProcessor {
     this.hooks.push(hook);
   }
 
-  public async processEvent(eventType: string, payload: Record<string, any>, options?: Record<string, any>): Promise<any> {
+  public async processEvent(
+    eventType: string,
+    payload: Record<string, any>,
+    options?: Record<string, any>
+  ): Promise<any> {
     const envelope = this.buildEnvelope(eventType, payload, options);
-    
-    // Run middleware hooks
+
     let processedPayload: any = { ...envelope };
     for (const hook of this.hooks) {
       processedPayload = hook(processedPayload) as any;
     }
 
-    // Canonicalization, hashing, signing
     if (this.config.enableSigning && this.config.signingKey) {
-      const payloadData = processedPayload.payload;
       if (this.config.signingAlg === 'hmac-sha256') {
         processedPayload.log_signature = hashSignHmac(processedPayload, this.config.signingKey);
       } else {
@@ -80,24 +91,27 @@ export class EventProcessor {
 
     await this.emitter.emit('event:processed', processedPayload);
 
-    // If immediate send is requested
     if (options?.immediate) {
       return this.sendImmediate(processedPayload);
     }
 
-    // Queue the event
-    await this.memoryQueue.enqueue(processedPayload);
+  await this.memoryQueue.enqueue(processedPayload);
+  if (this.config.persistenceEnabled) {
     await this.persistentQueue.enqueue(processedPayload);
+  }
 
-    // If batch size is reached, flush immediately
-    if (this.memoryQueue.length >= this.config.batchSize) {
-      return this.flush();
-    }
+  if (!options?.noAutoFlush && this.memoryQueue.length >= this.config.batchSize) {
+    await this.flush();
+  }
 
     return null;
   }
 
-  private buildEnvelope(eventType: string, payload: Record<string, any>, options?: Record<string, any>): EventEnvelope {
+  private buildEnvelope(
+    eventType: string,
+    payload: Record<string, any>,
+    options?: Record<string, any>
+  ): EventEnvelope {
     const envelope: EventEnvelope = {
       event_type: eventType,
       payload,
@@ -117,74 +131,68 @@ export class EventProcessor {
       agent_metadata: options?.agent_metadata || {},
     };
 
-    if (!envelope.idempotency_key) {
-      const digestBase = `${envelope.event_type}:${envelope.source}:${envelope.trace_id}:${envelope.session_id}:${JSON.stringify(envelope.payload)}`;
-      envelope.idempotency_key = `blk_${createHash('sha256').update(digestBase).digest('hex').substring(0, 32)}`;
-    }
+    envelope.idempotency_key = options?.idempotency_key ?? this.generateIdempotencyKey(envelope);
 
     return envelope;
   }
 
+  private generateIdempotencyKey(envelope: EventEnvelope): string {
+    const raw = `${envelope.event_type}:${envelope.source}:${envelope.trace_id}:${envelope.session_id}:${envelope.timestamp}`;
+    return `blk_${createHash('sha256').update(raw).digest('hex').substring(0, 32)}`;
+  }
+
   private async sendImmediate(envelope: EventEnvelope): Promise<IngestResponse> {
-    let attempts = 0;
-    let lastError: any = null;
-
-    while (attempts <= this.config.retryCount) {
-      try {
-        const response = await this.transport.request('POST', '/logs', { json: envelope });
-        return response;
-      } catch (err: any) {
-        attempts++;
-        lastError = err;
-        if (attempts <= this.config.retryCount) {
-          // simple delay before retry
-          await new Promise(resolve => setTimeout(resolve, attempts * 200));
-        }
-      }
+    try {
+      return await this.retryPolicy.run(() =>
+        this.transport.request('POST', '/logs', { json: envelope })
+      );
+    } catch (err: any) {
+      await this.dlq.add(envelope, err?.message || 'Failed after max retries');
+      throw err;
     }
-
-    await this.dlq.add(envelope, lastError?.message || 'Failed after max retries');
-    throw lastError;
   }
 
   public async flush(): Promise<IngestResponse> {
-    const items = await this.memoryQueue.peek(this.config.batchSize);
-    if (items.length === 0) {
+    if (this.flushing) {
       return { ingested: 0, log_ids: [] };
     }
+    this.flushing = true;
 
-    let attempts = 0;
-    let lastError: any = null;
-    const body = { logs: items };
+    let totalIngested = 0;
+    const allLogIds: string[] = [];
 
-    while (attempts <= this.config.retryCount) {
-      try {
-        const response = await this.transport.request('POST', '/logs/batch', { json: body });
-        
-        // Success: dequeue and persist changes
-        await this.memoryQueue.dequeue(items.length);
-        await this.persistentQueue.dequeue(items.length);
-        return response;
-      } catch (err: any) {
-        attempts++;
-        lastError = err;
-        if (attempts <= this.config.retryCount) {
-          await new Promise(resolve => setTimeout(resolve, attempts * 200));
+    try {
+      while (true) {
+        const items = await this.memoryQueue.peek(this.config.batchSize);
+        if (items.length === 0) break;
+
+        const body = { logs: items };
+
+        try {
+          const response = await this.retryPolicy.run(() =>
+            this.transport.request('POST', '/logs/batch', { json: body })
+          );
+          await this.memoryQueue.dequeue(items.length);
+          await this.persistentQueue.dequeue(items.length);
+          totalIngested += response.ingested ?? 0;
+          allLogIds.push(...(response.log_ids ?? []));
+        } catch (err: any) {
+          for (const item of items) {
+            await this.dlq.add(item, err?.message || 'Batch send failed');
+          }
+          await this.memoryQueue.dequeue(items.length);
+          await this.persistentQueue.dequeue(items.length);
+          throw err;
         }
       }
-    }
 
-    // On permanent failure, move all to DLQ, and remove from active queues
-    for (const item of items) {
-      await this.dlq.add(item, lastError?.message || 'Batch send failed');
+      return { ingested: totalIngested, log_ids: allLogIds };
+    } finally {
+      this.flushing = false;
     }
-    await this.memoryQueue.dequeue(items.length);
-    await this.persistentQueue.dequeue(items.length);
-
-    throw lastError;
   }
 
-  public shutdown() {
+  public shutdown(): void {
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;

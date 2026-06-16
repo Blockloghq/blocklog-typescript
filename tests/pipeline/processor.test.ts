@@ -13,12 +13,20 @@ describe('EventProcessor', () => {
 
   beforeEach(() => {
     config = resolveConfig({ apiKey: 'test-key' });
-    transport = new SyncTransport({
+    transport = new SyncTransport({ 
       baseUrl: config.endpoint,
       apiKey: config.apiKey,
       timeout: config.timeout,
-    });
-    processor = new EventProcessor(config, transport);
+     });
+      vi.spyOn(transport, 'request').mockResolvedValue({ ingested: 0, log_ids: [] });
+      
+      processor = new EventProcessor(
+        config,
+        transport,
+        new MemoryQueue(),
+        new PersistentQueue(), 
+        new DeadLetterQueue(),
+      );
   });
 
   afterEach(() => {
@@ -160,19 +168,26 @@ describe('EventProcessor', () => {
 
     it('should flush when batch size is reached', async () => {
       const smallBatchConfig = resolveConfig({ apiKey: 'test-key', batchSize: 2 });
-      const smallProcessor = new EventProcessor(smallBatchConfig, transport);
-      
+      const smallProcessor = new EventProcessor(
+        smallBatchConfig,
+        transport,
+        new MemoryQueue(),
+        new PersistentQueue(),
+        new DeadLetterQueue(),
+      );
+
       vi.spyOn(transport, 'request').mockResolvedValue({ ingested: 2, log_ids: ['id1', 'id2'] });
-      
+
       await smallProcessor.processEvent('test-event', { data: 'test1' });
       await smallProcessor.processEvent('test-event', { data: 'test2' });
-      
+
       const memoryQueue = (smallProcessor as any).memoryQueue;
-      expect(memoryQueue.length).toBe(0); // Should have been flushed
-      
+      expect(memoryQueue.length).toBe(0);
+
       smallProcessor.shutdown();
     });
   });
+
 
   describe('Signing', () => {
     it('should sign events when signing is enabled', async () => {

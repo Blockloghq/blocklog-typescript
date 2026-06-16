@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BlocklogClient } from '../../src/client';
-import { SyncTransport } from '../../src/transport/fetch';
-import { BlocklogAuthError, BlocklogTransportError, ApiError, AuthenticationError, RateLimitError, ValidationError, TransportError } from '../../src/errors';
+import { 
+  BlocklogAuthError, 
+  BlocklogTransportError, 
+  ApiError, 
+  AuthenticationError, 
+  RateLimitError, 
+  ValidationError, 
+  TransportError 
+} from '../../src/errors';
 
 describe('API Sub-Clients', () => {
   let client: BlocklogClient;
@@ -12,8 +19,8 @@ describe('API Sub-Clients', () => {
     requestSpy = vi.spyOn(client.transport, 'request').mockResolvedValue({});
   });
 
-  afterEach(() => {
-    client.shutdown();
+  afterEach(async () => {
+    await client.shutdown();
   });
 
   it('DecisionsClient', async () => {
@@ -222,53 +229,78 @@ describe('API Sub-Clients', () => {
   });
 
   describe('Retry Behavior', () => {
+    let retryClient: BlocklogClient;
+    let retryRequestSpy: any;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      retryClient = new BlocklogClient({
+        apiKey: 'test',
+        flushInterval: 60_000,  // long enough to never fire during a test
+      });
+      retryRequestSpy = vi.spyOn(retryClient.transport, 'request').mockResolvedValue({});
+    });
+
+    afterEach(async () => {
+      vi.useRealTimers();
+      await retryClient.shutdown();
+    });
+
     it('should retry on 429 responses', async () => {
       let attemptCount = 0;
-      requestSpy.mockImplementation(async () => {
+      retryRequestSpy.mockImplementation(async () => {
         attemptCount++;
         if (attemptCount < 3) {
           throw new BlocklogTransportError('Rate limit exceeded', 429, 'Too many requests');
         }
         return { success: true };
       });
-      
-      await client.decisions.get('1');
+
+      const retryPromise = retryClient.decisions.get('1');
+      await vi.advanceTimersByTimeAsync(10_000); // enough for retry backoff, less than 60_000 flush interval
+      await retryPromise;
+
       expect(attemptCount).toBe(3);
     });
 
     it('should retry on 500 responses', async () => {
       let attemptCount = 0;
-      requestSpy.mockImplementation(async () => {
+      retryRequestSpy.mockImplementation(async () => {
         attemptCount++;
         if (attemptCount < 2) {
           throw new BlocklogTransportError('Internal Server Error', 500, 'Server error');
         }
         return { success: true };
       });
-      
-      await client.decisions.get('1');
+
+      const retryPromise = retryClient.decisions.get('1');
+      await vi.advanceTimersByTimeAsync(10_000); 
+      await retryPromise;
+
       expect(attemptCount).toBe(2);
     });
 
     it('should not retry on 400 responses', async () => {
       let attemptCount = 0;
-      requestSpy.mockImplementation(async () => {
+      retryRequestSpy.mockImplementation(async () => {
         attemptCount++;
         throw new BlocklogTransportError('Bad Request', 400, 'Invalid input');
       });
-      
-      await expect(client.decisions.create({ invalid: 'data' })).rejects.toThrow();
+
+      await expect(retryClient.decisions.create({ invalid: 'data' })).rejects.toThrow();
+
       expect(attemptCount).toBe(1);
     });
 
     it('should not retry on 401 responses', async () => {
       let attemptCount = 0;
-      requestSpy.mockImplementation(async () => {
+      retryRequestSpy.mockImplementation(async () => {
         attemptCount++;
         throw new BlocklogAuthError('Authentication failed');
       });
-      
-      await expect(client.decisions.get('1')).rejects.toThrow();
+
+      await expect(retryClient.decisions.get('1')).rejects.toThrow();
+
       expect(attemptCount).toBe(1);
     });
   });

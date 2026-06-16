@@ -28,7 +28,7 @@ describe('Load Test: Concurrency', () => {
         (async () => {
           const traceId = `trace-${i}`;
           traceIds.push(traceId);
-          
+
           const span = TraceManager.startSpan('root-span', { traceId });
           await client.event('TRACE_EVENT', { traceId }, { trace_id: traceId });
           TraceManager.endSpan(span);
@@ -39,7 +39,7 @@ describe('Load Test: Concurrency', () => {
     await Promise.all(promises);
 
     expect(traceIds.length).toBe(TRACE_COUNT);
-    expect(new Set(traceIds).size).toBe(TRACE_COUNT); // All unique
+    expect(new Set(traceIds).size).toBe(TRACE_COUNT);
   });
 
   it('should maintain span hierarchy during concurrent operations', async () => {
@@ -54,21 +54,24 @@ describe('Load Test: Concurrency', () => {
         (async () => {
           const traceId = `trace-${i}`;
           const parentSpan = TraceManager.startSpan('parent-span', { traceId });
-          
+
           spanHierarchies.push({
             traceId: parentSpan.traceId,
             spanId: parentSpan.id,
-            parentId: parentSpan.parentId
+            parentId: parentSpan.parentId,
           });
 
-          const childSpan = TraceManager.startSpan('child-span');
-          spanHierarchies.push({
-            traceId: childSpan.traceId,
-            spanId: childSpan.id,
-            parentId: childSpan.parentId
+          // Run inside parent's context so child picks it up automatically
+          TraceManager.runWithSpan(parentSpan, () => {
+            const childSpan = TraceManager.startSpan('child-span');
+            spanHierarchies.push({
+              traceId: childSpan.traceId,
+              spanId: childSpan.id,
+              parentId: childSpan.parentId,
+            });
+            TraceManager.endSpan(childSpan);
           });
 
-          TraceManager.endSpan(childSpan);
           TraceManager.endSpan(parentSpan);
         })()
       );
@@ -76,13 +79,11 @@ describe('Load Test: Concurrency', () => {
 
     await Promise.all(promises);
 
-    // Validate hierarchy
     spanHierarchies.forEach(hierarchy => {
       expect(hierarchy.traceId).toBeDefined();
       expect(hierarchy.spanId).toBeDefined();
     });
 
-    // Child spans should have parent IDs
     const childSpans = spanHierarchies.filter(h => h.parentId !== null);
     expect(childSpans.length).toBeGreaterThan(0);
   });
@@ -99,11 +100,14 @@ describe('Load Test: Concurrency', () => {
         (async () => {
           const traceId = `trace-${i}`;
           const span = TraceManager.startSpan('context-span', { traceId });
-          
-          const currentSpan = TraceManager.currentSpan();
-          if (currentSpan) {
-            contextPropagations.push(currentSpan.traceId);
-          }
+
+          // runWithSpan establishes isolated async context for this iteration
+          TraceManager.runWithSpan(span, () => {
+            const currentSpan = TraceManager.currentSpan();
+            if (currentSpan) {
+              contextPropagations.push(currentSpan.traceId);
+            }
+          });
 
           await client.event('CONTEXT_EVENT', { data: 'test' });
           TraceManager.endSpan(span);

@@ -53,7 +53,10 @@ export class SyncTransport {
       if (error.name === 'AbortError') {
         throw new BlocklogTransportError(`Request timed out after ${this.timeoutMs}ms`);
       }
-      throw error;
+      if (error instanceof BlocklogAuthError || error instanceof BlocklogTransportError) {
+        throw error;
+      }
+      throw new BlocklogTransportError(error?.message || 'Unknown transport error');
     } finally {
       clearTimeout(timeoutId);
     }

@@ -4,7 +4,7 @@ import { setGlobalClient } from '../src/globals';
 // Initialize the Blocklog client
 const client = new BlocklogClient({
   apiKey: process.env.BLOCKLOG_API_KEY || 'your-api-key',
-  endpoint: process.env.BLOCKLOG_ENDPOINT || 'https://api.blocklog.ai',
+  endpoint: process.env.BLOCKLOG_ENDPOINT || 'base_url',
 });
 
 // Set global client for decorator usage

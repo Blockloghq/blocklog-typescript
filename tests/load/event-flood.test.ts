@@ -72,6 +72,7 @@ describe('Load Test: Event Flood', () => {
     }
 
     await Promise.all(operations);
+    await client.flush(); 
     
     const health = await client.health();
     expect(health.healthy).toBe(true);

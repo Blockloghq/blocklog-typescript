@@ -2,7 +2,7 @@
   "name": "@blocklog/sdk",
   "version": "1.0.0",
   "description": "Official TypeScript SDK for Blocklog AI observability, tracing, evaluation, HITL, governance, and audit logging.",
-  "homepage": "https://blocklog.dev",
+  "homepage": "https://blocklogsecurity.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/blockloghq/blocklog-typescript.git"
@@ -61,6 +61,7 @@
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"
+  
   },
   "dependencies": {
     "zod": "^4.4.3"

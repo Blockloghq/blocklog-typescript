@@ -27,7 +27,7 @@ import { BlocklogClient } from '@blocklog/sdk';
 
 const client = new BlocklogClient({
   apiKey: 'your-api-key',
-  endpoint: 'https://api.blocklog.ai',
+  endpoint: 'base_url',
 });
 
 // Track an agent execution
@@ -160,7 +160,7 @@ Configuration can be provided via constructor or environment variables:
 ```typescript
 const client = new BlocklogClient({
   apiKey: 'your-api-key',
-  endpoint: 'https://api.blocklog.ai',
+  endpoint: 'base_url',
   batchSize: 100,
   flushInterval: 5000,
   enableSigning: true,

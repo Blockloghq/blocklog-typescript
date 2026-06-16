@@ -7,11 +7,15 @@ export class TraceManager {
   private static activeSpans = new Map<string, Span>();
 
   public static startSpan(name: string, options?: SpanOptions): Span {
+    // Read parent from AsyncLocalStorage context, not just activeSpans
     const parent = this.currentSpan();
     const traceId = options?.traceId || parent?.traceId || generateUUID();
-    const parentId = options?.parentId || parent?.id || null;
-    
-    // Merge existing metadata if parent is available
+    // If a parentId is explicitly given use it, otherwise inherit from
+    // the current context span — this is what makes child spans work
+    const parentId = options?.parentId !== undefined
+      ? options.parentId
+      : (parent?.id ?? null);
+
     const mergedMetadata = {
       ...(parent?.metadata || {}),
       ...(options?.metadata || {}),
@@ -46,16 +50,35 @@ export class TraceManager {
   }
 
   public static runWithSpan<T>(span: Span, callback: () => T): T {
-    // Register the span as active in activeSpans map
     this.activeSpans.set(span.id, span);
     return this.storage.run(span, () => {
       try {
         return callback();
       } finally {
-        // Just in case, clean up active map reference if the span ended
         if (span.endTime !== null) {
           this.activeSpans.delete(span.id);
         }
+      }
+    });
+  }
+
+  // Convenience: start a span, run async work inside its context, end it
+  public static async runWithSpanAsync<T>(
+    name: string,
+    callback: (span: Span) => Promise<T>,
+    options?: SpanOptions
+  ): Promise<T> {
+    const span = this.startSpan(name, options);
+    return this.storage.run(span, async () => {
+      try {
+        const result = await callback(span);
+        span.end('ok');
+        return result;
+      } catch (err) {
+        span.end('error');
+        throw err;
+      } finally {
+        this.activeSpans.delete(span.id);
       }
     });
   }

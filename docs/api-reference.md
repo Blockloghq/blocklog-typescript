@@ -34,7 +34,7 @@ new BlocklogClient(config: BlocklogConfig, dependencies?: ClientDependencies)
 ```typescript
 const client = new BlocklogClient({
   apiKey: 'your-api-key',
-  endpoint: 'https://api.blocklog.ai',
+  endpoint: 'base_url',
   batchSize: 100,
   flushInterval: 5000
 });

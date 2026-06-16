@@ -5,6 +5,7 @@ import { EventEnvelope } from '../models/events';
 export class PersistentQueue {
   private filePath: string;
   private items: EventEnvelope[] = [];
+  private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(filePath?: string) {
     this.filePath = filePath || path.join(process.cwd(), '.blocklog_queue.json');
@@ -19,8 +20,7 @@ export class PersistentQueue {
       } else {
         this.items = [];
       }
-    } catch (error) {
-      // If error (e.g., malformed json), reset
+    } catch {
       this.items = [];
     }
   }
@@ -31,19 +31,22 @@ export class PersistentQueue {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(this.filePath, JSON.stringify(this.items, null, 2), 'utf8');
-    } catch (error) {
-      // Log or suppress persistent queue errors in production
+      fs.writeFileSync(this.filePath, JSON.stringify(this.items), 'utf8');
+    } catch {
+      // Suppress
     }
   }
 
   public async enqueue(item: EventEnvelope): Promise<void> {
     this.items.push(item);
+    // Write immediately so tests that check fs.existsSync right after enqueue pass.
+    // For high-volume loads the caller should use enqueueBatch instead.
     this.saveToDisk();
   }
 
   public async enqueueBatch(batch: EventEnvelope[]): Promise<void> {
     this.items.push(...batch);
+    // Single write for the whole batch — avoids O(n) writes
     this.saveToDisk();
   }
 
@@ -59,12 +62,12 @@ export class PersistentQueue {
 
   public async clear(): Promise<void> {
     this.items = [];
-    if (fs.existsSync(this.filePath)) {
-      try {
+    try {
+      if (fs.existsSync(this.filePath)) {
         fs.unlinkSync(this.filePath);
-      } catch (err) {
-        // Suppress deletion error
       }
+    } catch {
+      // Suppress
     }
   }
 

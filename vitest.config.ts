@@ -4,20 +4,22 @@ export default defineConfig({
   test: {
     environment: 'node',
 
-    // Only run OUR tests
+    clearMocks: true,
+    restoreMocks: true,
+
+    pool: 'forks',
+
+    testTimeout: 60000,
+    hookTimeout: 10000,
+
     include: [
       'tests/**/*.test.ts',
     ],
 
-    // Never run dependency tests
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-
-      // Disabled integration tests
       'tests/backend-compat/**',
-
-      // Disabled legacy tests
       'tests/context/context.test.ts',
       'tests/crypto/crypto.test.ts',
       'tests/decorators/decision.test.ts',

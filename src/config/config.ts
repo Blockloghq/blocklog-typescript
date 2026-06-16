@@ -21,6 +21,7 @@ export const BlocklogConfigSchema = z.object({
   retryCount: z.number().int().nonnegative().default(DEFAULT_RETRY_COUNT),
   enableSigning: z.boolean().default(DEFAULT_ENABLE_SIGNING),
   enableCompression: z.boolean().default(DEFAULT_ENABLE_COMPRESSION),
+  persistenceEnabled: z.boolean().default(false), 
   debug: z.boolean().default(DEFAULT_DEBUG),
   signingKey: z.string().optional(),
   signingAlg: z.enum(['ed25519', 'hmac-sha256']).default(DEFAULT_SIGNING_ALG),

@@ -9,7 +9,7 @@ import { BlocklogClient } from '@blocklog/sdk';
 
 const client = new BlocklogClient({
   apiKey: 'your-api-key',
-  endpoint: 'https://api.blocklog.ai',
+  endpoint: 'base_url',
   batchSize: 100,
   flushInterval: 5000,
   timeout: 30000,
@@ -34,7 +34,7 @@ const client = new BlocklogClient({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `endpoint` | `string` | `https://api.blocklog.ai` | Blocklog API endpoint URL |
+| `endpoint` | `string` | `base_url` | Blocklog API endpoint URL |
 | `batchSize` | `number` | `100` | Number of events to batch before sending |
 | `flushInterval` | `number` | `5000` | Auto-flush interval in milliseconds |
 | `timeout` | `number` | `30000` | HTTP request timeout in milliseconds |
@@ -232,7 +232,7 @@ try {
 ```typescript
 const client = new BlocklogClient({
   apiKey: process.env.BLOCKLOG_API_KEY,
-  endpoint: process.env.BLOCKLOG_ENDPOINT || 'https://api.blocklog.ai',
+  endpoint: process.env.BLOCKLOG_ENDPOINT || 'base_url',
   batchSize: 100,
   flushInterval: 5000,
   retryCount: 3,

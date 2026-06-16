@@ -6,7 +6,7 @@ This guide covers installing and setting up the Blocklog TypeScript SDK.
 
 - Node.js 18+ or newer
 - npm or yarn package manager
-- A Blocklog API key (get one at [https://api.blocklog.ai](https://api.blocklog.ai))
+- A Blocklog API key (get one at [base_url](base_url))
 
 ## Installation
 
@@ -46,7 +46,7 @@ Create a `.env` file:
 
 ```env
 BLOCKLOG_API_KEY=your-api-key
-BLOCKLOG_ENDPOINT=https://api.blocklog.ai
+BLOCKLOG_ENDPOINT=base_url
 BLOCKLOG_BATCH_SIZE=100
 BLOCKLOG_FLUSH_INTERVAL=5000
 BLOCKLOG_ENABLE_SIGNING=true
