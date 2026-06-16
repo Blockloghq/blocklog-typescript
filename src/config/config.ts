@@ -13,7 +13,8 @@ import {
 import { validateSchema } from '../utils/validation';
 
 export const BlocklogConfigSchema = z.object({
-  apiKey: z.string().min(1, 'API Key is required'),
+  apiKey: z.string().min(1).optional(),
+  accessToken: z.string().min(1).optional(),
   endpoint: z.string().url().default(DEFAULT_ENDPOINT),
   batchSize: z.number().int().positive().default(DEFAULT_BATCH_SIZE),
   flushInterval: z.number().int().positive().default(DEFAULT_FLUSH_INTERVAL),
@@ -37,6 +38,10 @@ export function resolveConfig(
     apiKey:
       runtimeConfig.apiKey ??
       process.env.BLOCKLOG_API_KEY,
+
+    accessToken:
+      runtimeConfig.accessToken ??
+      process.env.BLOCKLOG_ACCESS_TOKEN,
 
     endpoint:
       runtimeConfig.endpoint ??

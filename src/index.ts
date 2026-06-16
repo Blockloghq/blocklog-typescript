@@ -10,8 +10,11 @@ import { instrumentOpenAIAgents } from './integrations/openai';
 // Export everything individually
 export * from './client';
 export * from './errors';
+export * from './models/auth';
+export * from './models/teams';
 export * from './models/events';
 export * from './models/responses';
+export * from './utils/teams';
 export { traceAgent, executeAgent } from './decorators/agent';
 export { traceTool, executeTool } from './decorators/tool';
 export { executeDecision, DecisionContext } from './decorators/decision';

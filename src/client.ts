@@ -4,8 +4,10 @@ import { ApprovalClient } from './api/approvals';
 import { IncidentsClient } from './api/incidents';
 import { ComplianceClient } from './api/compliance';
 import { ReplayClient } from './api/replay';
+import { TeamsClient } from './api/teams';
+import { AuthClient } from './api/auth';
 import { EventBuffer } from './batching/buffer';
-import { SyncTransport } from './transport/fetch';
+import { SyncTransport, type RequestInterceptor, type ResponseInterceptor } from './transport/fetch';
 import { RetryPolicy } from './transport/retry';
 import { HookCallback } from './middleware/hooks';
 import { IngestResponse } from './models/responses';
@@ -52,6 +54,8 @@ export class BlocklogClient {
   readonly incidents: IncidentsClient;
   readonly compliance: ComplianceClient;
   readonly replay: ReplayClient;
+  readonly teams: TeamsClient;
+  readonly auth: AuthClient;
 
   readonly forensics: ReplayClient;
   readonly hitl: ApprovalClient;
@@ -62,7 +66,9 @@ export class BlocklogClient {
     this.transport = dependencies?.transport || new SyncTransport({
       baseUrl: this.config.endpoint,
       apiKey: this.config.apiKey,
+      accessToken: this.config.accessToken,
       timeout: this.config.timeout,
+      debug: this.config.debug,
     });
 
     this.retry = dependencies?.retry || new RetryPolicy({ maxRetries: this.config.retryCount });
@@ -92,9 +98,26 @@ export class BlocklogClient {
     this.incidents = new IncidentsClient(this);
     this.compliance = new ComplianceClient(this);
     this.replay = new ReplayClient(this);
+    this.teams = new TeamsClient(this);
+    this.auth = new AuthClient(this);
 
     this.forensics = this.replay;
     this.hitl = this.approvals;
+  }
+
+  public setAccessToken(token: string): this {
+    this.transport.setCredential(token);
+    return this;
+  }
+
+  public addRequestInterceptor(interceptor: RequestInterceptor): this {
+    this.transport.addRequestInterceptor(interceptor);
+    return this;
+  }
+
+  public addResponseInterceptor(interceptor: ResponseInterceptor): this {
+    this.transport.addResponseInterceptor(interceptor);
+    return this;
   }
 
   public addHook(hook: HookCallback): this {
@@ -145,7 +168,7 @@ export class BlocklogClient {
     return result;
   }
 
- public async shutdown(): Promise<void> {
+  public async shutdown(): Promise<void> {
     try {
       await this.flush();
     } catch {
@@ -167,13 +190,15 @@ export class BlocklogClient {
   }
 
   public async health(): Promise<HealthStatus> {
-  const queueDepth = this.memoryQueue.length + this.persistentQueue.length;
- 
-  return {
-    healthy: queueDepth === 0,          // <-- removed transportReady check
-    queueDepth,
-    pendingEvents: queueDepth,
-    transportReady: true,               // <-- assume ready; real errors surface on send
-  };
-}
+    const queueDepth = this.memoryQueue.length + this.persistentQueue.length;
+
+    return {
+      healthy: queueDepth === 0,
+      queueDepth,
+      pendingEvents: queueDepth,
+      transportReady: true,
+    };
   }
+}
+
+export class BlocklogSDK extends BlocklogClient {}

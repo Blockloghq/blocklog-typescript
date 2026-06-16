@@ -22,6 +22,9 @@ export class DecisionsClient extends BaseClient {
   }
 
   public async verify(id: string) {
-    return this.request('GET', `/decisions/${id}/verify`);
+    return this.request<{ verified: boolean; signature?: string; hash?: string }>(
+      'GET',
+      `/decisions/${id}/verify`,
+    );
   }
 }

@@ -1,62 +1,135 @@
-import { BlocklogAuthError, BlocklogTransportError } from '../errors';
+import {
+  AuthenticationError,
+  BlocklogTransportError,
+  TransportError,
+  mapHttpError,
+} from '../errors';
+
+export interface RequestOptions {
+  json?: unknown;
+  params?: Record<string, string | number | boolean | null | undefined>;
+  headers?: Record<string, string>;
+  skipAuth?: boolean;
+  tokenOverride?: string;
+}
+
+export type RequestInterceptor = (
+  request: {
+    method: string;
+    path: string;
+    url: string;
+    headers: Record<string, string>;
+    body?: string;
+  }
+) => void | Promise<void>;
+
+export type ResponseInterceptor = (
+  response: {
+    method: string;
+    path: string;
+    status: number;
+    ok: boolean;
+  }
+) => void | Promise<void>;
 
 export class SyncTransport {
   private baseUrl: string;
-  private apiKey: string;
+  private credential?: string;
   private timeoutMs: number;
+  private debug: boolean;
+  private requestInterceptors: RequestInterceptor[] = [];
+  private responseInterceptors: ResponseInterceptor[] = [];
 
-  constructor(options: { baseUrl: string; apiKey: string; timeout?: number }) {
+  constructor(options: {
+    baseUrl: string;
+    apiKey?: string;
+    accessToken?: string;
+    timeout?: number;
+    debug?: boolean;
+  }) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
-    this.apiKey = options.apiKey;
+    this.credential = options.accessToken ?? options.apiKey;
     this.timeoutMs = options.timeout || 10000;
+    this.debug = options.debug ?? false;
   }
 
-  public async request(method: string, path: string, options?: { json?: any; params?: Record<string, string> }): Promise<any> {
+  public setCredential(token: string | undefined) {
+    this.credential = token;
+  }
+
+  public addRequestInterceptor(interceptor: RequestInterceptor) {
+    this.requestInterceptors.push(interceptor);
+  }
+
+  public addResponseInterceptor(interceptor: ResponseInterceptor) {
+    this.responseInterceptors.push(interceptor);
+  }
+
+  public async request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
     const url = new URL(this.baseUrl + path);
     if (options?.params) {
       Object.entries(options.params).forEach(([key, value]) => {
-        url.searchParams.append(key, value);
+        if (value !== undefined && value !== null) {
+          url.searchParams.append(key, String(value));
+        }
       });
     }
 
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
       'User-Agent': 'blocklog-typescript/1.0.0',
+      ...(options?.headers ?? {}),
     };
+    const token = options?.tokenOverride ?? this.credential;
+    if (!options?.skipAuth) {
+      if (!token) {
+        throw new AuthenticationError('Missing apiKey/accessToken for authenticated request');
+      }
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const body = options?.json ? JSON.stringify(options.json) : undefined;
+
+    for (const interceptor of this.requestInterceptors) {
+      await interceptor({ method, path, url: url.toString(), headers, body });
+    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      if (this.debug) {
+        console.debug(`[blocklog] ${method} ${url.toString()}`);
+      }
       const response = await fetch(url.toString(), {
         method,
         headers,
-        body: options?.json ? JSON.stringify(options.json) : undefined,
+        body,
         signal: controller.signal as any,
       });
 
+      for (const interceptor of this.responseInterceptors) {
+        await interceptor({ method, path, status: response.status, ok: response.ok });
+      }
+
       if (!response.ok) {
         const text = await response.text();
-        if (response.status === 401 || response.status === 403) {
-          throw new BlocklogAuthError(`Authentication failed: ${response.status} ${text}`);
-        }
-        throw new BlocklogTransportError(`HTTP Error ${response.status}: ${text}`, response.status, text);
+        const message = text || `HTTP Error ${response.status}`;
+        throw mapHttpError(response.status, message, text);
       }
 
       if (response.status === 204) {
-        return null;
+        return null as T;
       }
 
-      return await response.json();
+      return await response.json() as T;
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        throw new BlocklogTransportError(`Request timed out after ${this.timeoutMs}ms`);
+        throw new TransportError(`Request timed out after ${this.timeoutMs}ms`);
       }
-      if (error instanceof BlocklogAuthError || error instanceof BlocklogTransportError) {
+      if (error instanceof Error && !(error instanceof BlocklogTransportError)) {
         throw error;
       }
-      throw new BlocklogTransportError(error?.message || 'Unknown transport error');
+      throw new TransportError(error?.message || 'Unknown transport error');
     } finally {
       clearTimeout(timeoutId);
     }

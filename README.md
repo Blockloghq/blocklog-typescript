@@ -41,6 +41,56 @@ await client.event('AGENT_RUN', {
 await client.shutdown();
 ```
 
+## Signup And Teams
+
+```typescript
+import {
+  BlocklogSDK,
+  canManageMembers,
+  canManageTeam,
+  getPrimaryTeam,
+  isTeamOwner,
+} from '@blocklog/sdk';
+
+const sdk = new BlocklogSDK({
+  endpoint: 'https://your-blocklog-host/api/v1',
+  debug: true,
+  timeout: 10_000,
+});
+
+const signup = await sdk.auth.signup({
+  username: 'jane',
+  email: 'jane@example.com',
+  password: 'ChangeMe123!',
+  workspace_name: 'Acme Security',
+});
+
+const isOwner = isTeamOwner(signup.team, signup.user.user_id);
+console.log(signup.team.name, isOwner);
+console.log(signup.team.owner_user_id);
+
+sdk.setAccessToken(signup.token);
+
+const teams = await sdk.teams.list();
+const primary = getPrimaryTeam(teams);
+const members = primary ? await sdk.teams.members.list(primary.id) : [];
+
+if (primary && canManageTeam(primary, signup.user.user_id)) {
+  await sdk.teams.update(primary.id, {
+    default_sla_minutes: 30,
+  });
+}
+
+if (members[0] && canManageMembers(members[0])) {
+  console.log('First member can manage membership');
+}
+
+const notificationResult = primary
+  ? await sdk.teams.notifyTest(primary.id)
+  : null;
+console.log(notificationResult?.results);
+```
+
 ## Documentation
 
 - [Installation Guide](docs/installation.md)
@@ -122,17 +172,30 @@ const tracer = client.instrumentLangChain();
 ### Error Handling
 
 ```typescript
-import { BlocklogClient, ApiError, AuthenticationError } from '@blocklog/sdk';
+import {
+  AuthenticationError,
+  AuthorizationError,
+  BlocklogClient,
+  NotFoundError,
+  RateLimitError,
+  ValidationError,
+} from '@blocklog/sdk';
 
 const client = new BlocklogClient({ apiKey: 'your-api-key' });
 
 try {
-  await client.event('AGENT_RUN', { data: 'test' });
+  await client.teams.get('team-id');
 } catch (error) {
   if (error instanceof AuthenticationError) {
     console.error('Authentication failed');
-  } else if (error instanceof ApiError) {
-    console.error(`API Error: ${error.message}`);
+  } else if (error instanceof AuthorizationError) {
+    console.error('Missing team ownership permissions');
+  } else if (error instanceof ValidationError) {
+    console.error(`Validation failed: ${error.message}`);
+  } else if (error instanceof NotFoundError) {
+    console.error('Team not found');
+  } else if (error instanceof RateLimitError) {
+    console.error('Rate limited');
   }
 }
 ```
@@ -163,13 +226,15 @@ const client = new BlocklogClient({
   endpoint: 'base_url',
   batchSize: 100,
   flushInterval: 5000,
+  accessToken: process.env.BLOCKLOG_ACCESS_TOKEN,
   enableSigning: true,
-  debug: false,
+  debug: true,
 });
 ```
 
 Environment variables:
 - `BLOCKLOG_API_KEY` - Your API key
+- `BLOCKLOG_ACCESS_TOKEN` - User access token for dashboard and team APIs
 - `BLOCKLOG_ENDPOINT` - API endpoint URL
 - `BLOCKLOG_BATCH_SIZE` - Event batch size
 - `BLOCKLOG_FLUSH_INTERVAL` - Auto-flush interval (ms)
@@ -212,6 +277,17 @@ await client.compliance.export({ format: 'pdf' });
 await client.replay.reconstruct('trace-id');
 await client.replay.verify('replay-id');
 await client.replay.replay('replay-id', { speed: 2 });
+
+// Teams
+await client.teams.list();
+await client.teams.get('team-id');
+await client.teams.create({ name: 'Security Response' });
+await client.teams.update('team-id', { is_active: true });
+await client.teams.members.list('team-id');
+await client.teams.members.add('team-id', { email: 'owner@example.com', role: 'admin' });
+await client.teams.members.update('team-id', 'member-id', { role: 'member' });
+await client.teams.members.remove('team-id', 'member-id');
+await client.teams.notifyTest('team-id');
 ```
 
 ## Development

@@ -13,17 +13,23 @@ export class BaseClient {
     });
   }
 
-  protected request(
-  method: string,
-  path: string,
-  options?: Record<string, any>
-) {
-  return this.retryPolicy.run(() => {
-    if (options === undefined) {
-      return this.client.transport.request(method, path);
+  protected request<T>(
+    method: string,
+    path: string,
+    options?: Record<string, any>
+  ): Promise<T> {
+    const execute = () => {
+      if (options === undefined) {
+        return this.client.transport.request<T>(method, path);
+      }
+
+      return this.client.transport.request<T>(method, path, options);
+    };
+
+    if (method.toUpperCase() === 'GET') {
+      return this.retryPolicy.run(execute);
     }
 
-    return this.client.transport.request(method, path, options);
-  });
-}
+    return execute();
+  }
 }

@@ -170,7 +170,7 @@ export class EventProcessor {
 
         try {
           const response = await this.retryPolicy.run(() =>
-            this.transport.request('POST', '/logs/batch', { json: body })
+            this.transport.request<{ ingested?: number; log_ids?: string[] }>('POST', '/logs/batch', { json: body })
           );
           await this.memoryQueue.dequeue(items.length);
           await this.persistentQueue.dequeue(items.length);
