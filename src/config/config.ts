@@ -13,19 +13,25 @@ import {
 import { validateSchema } from '../utils/validation';
 
 export const BlocklogConfigSchema = z.object({
-  apiKey: z.string().min(1).optional(),
+  apiKey: z.string().min(1),
+
   accessToken: z.string().min(1).optional(),
+
   endpoint: z.string().url().default(DEFAULT_ENDPOINT),
   batchSize: z.number().int().positive().default(DEFAULT_BATCH_SIZE),
   flushInterval: z.number().int().positive().default(DEFAULT_FLUSH_INTERVAL),
   timeout: z.number().int().positive().default(DEFAULT_TIMEOUT),
   retryCount: z.number().int().nonnegative().default(DEFAULT_RETRY_COUNT),
+
   enableSigning: z.boolean().default(DEFAULT_ENABLE_SIGNING),
   enableCompression: z.boolean().default(DEFAULT_ENABLE_COMPRESSION),
-  persistenceEnabled: z.boolean().default(false), 
+  persistenceEnabled: z.boolean().default(false),
   debug: z.boolean().default(DEFAULT_DEBUG),
+
   signingKey: z.string().optional(),
-  signingAlg: z.enum(['ed25519', 'hmac-sha256']).default(DEFAULT_SIGNING_ALG),
+  signingAlg: z
+    .enum(['ed25519', 'hmac-sha256'])
+    .default(DEFAULT_SIGNING_ALG),
 });
 
 export type BlocklogConfig = z.input<typeof BlocklogConfigSchema>;
